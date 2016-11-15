@@ -7,44 +7,80 @@
     <script src="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.js"></script>
   </head>
   <body class="mixpanel-platform-body">
+    <div class="graph-labels" id="label2">
+      <font size="16">Example Funnel:</font>
+    </div>
     <div class="mixpanel-platform-section">
-      <div id="eventSelect" style="float: left;"></div>
-      <div id="by" class="mixpanel-platform-label" style="margin-left: 10px; display: none;">by</div>
-      <div id="propSelect" style="float: left;"></div>
       <div id="dateSelect" style="float: right;"></div>
+      <div id="propSelect" style="float: left;"></div>
+      <div id="conversionDisplay" style="float: left;"><div id="conversion">   Conversion:</div></div>
       <div style="clear: both;"></div>
       <div id="graph"></div>
+      <div id="table"></div>
     </div>
-    <div id="table"></div>
+
     <script>
-      var eventSelect = $('#eventSelect').MPEventSelect();
-      var propSelect  = $('#propSelect').MPPropertySelect();
-      var dateSelect  = $('#dateSelect').MPDatepicker();
-      var eventGraph  = $('#graph').MPChart({chartType: 'line'});
-      var eventTable  = $('#table').MPTable({
-        showPercentages: true,
-        firstColHeader: 'Event'
-      });
+
+      // Funnel graph
+      var dateSelect = $('#dateSelect').MPDatepicker();
+      var graph  = $('#graph').MPChart({chartType: 'bar'});
+      var table = $('#table').MPTable();
+      var eventName1 = 'App Launch';
+      var eventName2 = 'Confirmation';
+      var propSelect = $('#propSelect').MPPropertySelect();
+      propSelect.MPPropertySelect('setEvent', eventName1);
 
       var runQuery = function() {
-        var eventName = eventSelect.MPEventSelect('value'),
-            propName  = propSelect.MPPropertySelect('value'),
-            dateRange = dateSelect.MPDatepicker('value');
+        
+        var dateRange = dateSelect.MPDatepicker('value');
+        var prop = propSelect.MPPropertySelect('value');
 
-        if (eventName) {
-          MP.api.segment(eventName, propName, dateRange).done(function(results) {
-            eventGraph.MPChart('setData', results);
-            eventTable.MPTable('setData', results);
+        if(prop !== null) {
+          var params = {
+            to: dateRange.to,
+            from: dateRange.from,
+            length: 14,
+            segment: prop,
+          }
+        } else {
+          var params = {
+            to: dateRange.to,
+            from: dateRange.from,
+            length: 14,
+          }
+        }
+
+        if(prop !== null) {
+          MP.api.funnel(eventName1, eventName2, params).done(function(results) {
+            var tableData = {};
+            var graphData = {};
+            graphData[eventName1] = 0;
+            graphData[eventName2] = 0;
+            var values = Object.keys(results);
+            for(i=0; i<values.length; i++) {
+              var dates = Object.keys(results[values[i]]);
+              for(j=0; j<dates.length; j++) {
+                if(j==0) {
+                  tableData[values[i]] = {};
+                }
+                tableData[values[i]][dates[j]] = parseFloat(results[values[i]][dates[j]][1]["overall_conv_ratio"] * 100).toFixed(2).toString() + '%';
+                graphData[eventName1] += results[values[i]][dates[j]][0]['count'];
+                graphData[eventName2] += results[values[i]][dates[j]][1]['count'];
+              }
+            }
+
+            graph.MPChart('setData', graphData);
+            table.MPTable('setData', tableData);
+            document.getElementById("conversion").innerHTML = '   Conversion: ' + (parseFloat(graphData[eventName2] / graphData[eventName1]) * 100).toFixed(2).toString() + '%';
           });
         }
+
       };
-      eventSelect.on('change', function(e, eventName) {
-        propSelect.MPPropertySelect('setEvent', eventName);
-        $("#by").show();
-        runQuery();
-      });
-      propSelect.on('change', runQuery);
+
       dateSelect.on('change', runQuery);
+      propSelect.on('change', runQuery);
+      runQuery();
+
     </script>
   </body>
 </html>
